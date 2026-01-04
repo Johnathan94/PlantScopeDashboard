@@ -1,64 +1,51 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, Shield, ShieldCheck, Eye } from 'lucide-react';
+import { Edit2, Trash2, Search, ShieldCheck, Eye, UserCog, RefreshCw } from 'lucide-react';
 import { Header } from '../components/layout';
 import { Card, Button, Table, Modal, Input, Select, Badge } from '../components/ui';
-import type { User } from '../types';
+import { useUsers, useUpdateUser, useDeleteUser, useAssignRole, useRemoveRole } from '../hooks/useAdmin';
+import type { AdminUser, PaginationParams } from '../api/services/admin.service';
 
-const initialUsers: User[] = [
-  { id: '1', name: 'John Admin', email: 'john@example.com', role: 'admin', status: 'active', createdAt: '2024-01-01', lastLogin: '2024-01-20' },
-  { id: '2', name: 'Jane Editor', email: 'jane@example.com', role: 'editor', status: 'active', createdAt: '2024-01-05', lastLogin: '2024-01-19' },
-  { id: '3', name: 'Bob Viewer', email: 'bob@example.com', role: 'viewer', status: 'inactive', createdAt: '2024-01-10', lastLogin: '2024-01-15' },
-  { id: '4', name: 'Alice Editor', email: 'alice@example.com', role: 'editor', status: 'active', createdAt: '2024-01-08', lastLogin: '2024-01-18' },
-  { id: '5', name: 'Charlie Viewer', email: 'charlie@example.com', role: 'viewer', status: 'active', createdAt: '2024-01-12', lastLogin: '2024-01-17' },
-];
-
-const roleOptions = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'viewer', label: 'Viewer' },
-];
-
-const statusOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
+const tierOptions = [
+  { value: 'Seedling', label: 'Seedling (Free)' },
+  { value: 'Gardener', label: 'Gardener ($4.99)' },
+  { value: 'Botanist', label: 'Botanist ($9.99)' },
 ];
 
 export const Users: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [params, setParams] = useState<PaginationParams>({ page: 1, pageSize: 10 });
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
-    role: 'viewer' as User['role'],
-    status: 'active' as User['status'],
+    subscriptionTier: 'Seedling',
   });
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const { data, isLoading, refetch } = useUsers({ ...params, search: searchTerm });
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+  const assignRole = useAssignRole();
+  const removeRole = useRemoveRole();
 
-  const handleOpenModal = (user?: User) => {
-    if (user) {
-      setEditingUser(user);
-      setFormData({
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-      });
-    } else {
-      setEditingUser(null);
-      setFormData({
-        name: '',
-        email: '',
-        role: 'viewer',
-        status: 'active',
-      });
-    }
+  const users = data?.users || [];
+  const totalPages = data?.totalPages || 1;
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setParams({ ...params, page: 1 });
+    refetch();
+  };
+
+  const handleOpenModal = (user: AdminUser) => {
+    setEditingUser(user);
+    setFormData({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      subscriptionTier: user.subscriptionTier,
+    });
     setIsModalOpen(true);
   };
 
@@ -67,52 +54,59 @@ export const Users: React.FC = () => {
     setEditingUser(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const now = new Date().toISOString().split('T')[0];
+    if (!editingUser) return;
 
-    if (editingUser) {
-      setUsers(
-        users.map((user) =>
-          user.id === editingUser.id ? { ...user, ...formData } : user
-        )
-      );
-    } else {
-      const newUser: User = {
-        id: String(Date.now()),
-        ...formData,
-        createdAt: now,
-      };
-      setUsers([newUser, ...users]);
-    }
-    handleCloseModal();
-  };
-
-  const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
-      setUsers(users.filter((user) => user.id !== id));
+    try {
+      await updateUser.mutateAsync({
+        id: editingUser.id,
+        data: formData,
+      });
+      handleCloseModal();
+    } catch (error) {
+      console.error('Failed to update user:', error);
     }
   };
 
-  const getRoleIcon = (role: User['role']) => {
-    switch (role) {
-      case 'admin':
-        return <ShieldCheck className="h-4 w-4 mr-1" />;
-      case 'editor':
-        return <Shield className="h-4 w-4 mr-1" />;
-      default:
-        return <Eye className="h-4 w-4 mr-1" />;
+  const handleDelete = async (id: string) => {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      try {
+        await deleteUser.mutateAsync(id);
+      } catch (error) {
+        console.error('Failed to delete user:', error);
+      }
     }
   };
 
-  const getRoleVariant = (role: User['role']) => {
-    switch (role) {
-      case 'admin':
-        return 'danger';
-      case 'editor':
-        return 'info';
-      default:
-        return 'default';
+  const handleToggleAdmin = async (user: AdminUser) => {
+    const isAdmin = user.roles.includes('Admin');
+    try {
+      if (isAdmin) {
+        await removeRole.mutateAsync({ userId: user.id, role: 'Admin' });
+      } else {
+        await assignRole.mutateAsync({ userId: user.id, role: 'Admin' });
+      }
+    } catch (error) {
+      console.error('Failed to update role:', error);
+    }
+  };
+
+  const getRoleIcon = (roles: string[]) => {
+    if (roles.includes('Admin')) return <ShieldCheck className="h-4 w-4 mr-1" />;
+    return <Eye className="h-4 w-4 mr-1" />;
+  };
+
+  const getRoleVariant = (roles: string[]): 'danger' | 'info' | 'default' => {
+    if (roles.includes('Admin')) return 'danger';
+    return 'default';
+  };
+
+  const getTierVariant = (tier: string): 'default' | 'success' | 'warning' | 'info' => {
+    switch (tier) {
+      case 'Botanist': return 'success';
+      case 'Gardener': return 'info';
+      default: return 'default';
     }
   };
 
@@ -120,50 +114,74 @@ export const Users: React.FC = () => {
     {
       key: 'name',
       header: 'User',
-      render: (user: User) => (
+      render: (user: AdminUser) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
-            {user.name.charAt(0).toUpperCase()}
+            {user.firstName?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="font-medium text-gray-900">{user.name}</p>
+            <p className="font-medium text-gray-900">{user.firstName} {user.lastName}</p>
             <p className="text-sm text-gray-500">{user.email}</p>
           </div>
         </div>
       ),
     },
     {
-      key: 'role',
+      key: 'roles',
       header: 'Role',
-      render: (user: User) => (
-        <Badge variant={getRoleVariant(user.role)}>
+      render: (user: AdminUser) => (
+        <Badge variant={getRoleVariant(user.roles)}>
           <span className="flex items-center">
-            {getRoleIcon(user.role)}
-            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+            {getRoleIcon(user.roles)}
+            {user.roles.includes('Admin') ? 'Admin' : 'User'}
           </span>
         </Badge>
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (user: User) => (
-        <Badge variant={user.status === 'active' ? 'success' : 'danger'}>
-          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+      key: 'subscriptionTier',
+      header: 'Plan',
+      render: (user: AdminUser) => (
+        <Badge variant={getTierVariant(user.subscriptionTier)}>
+          {user.subscriptionTier}
         </Badge>
       ),
     },
-    { key: 'createdAt', header: 'Created' },
     {
-      key: 'lastLogin',
+      key: 'usage',
+      header: 'Usage',
+      render: (user: AdminUser) => (
+        <div className="text-sm">
+          <p>{user.identificationsUsedThisWeek}/{user.weeklyIdentificationLimit} IDs</p>
+          <p className="text-gray-500">{user.plantsOwned}/{user.plantLimit} plants</p>
+        </div>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Joined',
+      render: (user: AdminUser) => new Date(user.createdAt).toLocaleDateString(),
+    },
+    {
+      key: 'lastLoginAt',
       header: 'Last Login',
-      render: (user: User) => user.lastLogin || 'Never',
+      render: (user: AdminUser) => user.lastLoginAt
+        ? new Date(user.lastLoginAt).toLocaleDateString()
+        : 'Never',
     },
     {
       key: 'actions',
       header: 'Actions',
-      render: (user: User) => (
+      render: (user: AdminUser) => (
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleToggleAdmin(user)}
+            title={user.roles.includes('Admin') ? 'Remove Admin' : 'Make Admin'}
+          >
+            <UserCog className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => handleOpenModal(user)}>
             <Edit2 className="h-4 w-4" />
           </Button>
@@ -176,10 +194,10 @@ export const Users: React.FC = () => {
   ];
 
   const stats = {
-    total: users.length,
-    active: users.filter((u) => u.status === 'active').length,
-    admins: users.filter((u) => u.role === 'admin').length,
-    editors: users.filter((u) => u.role === 'editor').length,
+    total: data?.totalCount || 0,
+    admins: users.filter((u) => u.roles.includes('Admin')).length,
+    gardeners: users.filter((u) => u.subscriptionTier === 'Gardener').length,
+    botanists: users.filter((u) => u.subscriptionTier === 'Botanist').length,
   };
 
   return (
@@ -192,84 +210,107 @@ export const Users: React.FC = () => {
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
           </Card>
           <Card>
-            <p className="text-sm text-gray-500">Active Users</p>
-            <p className="text-2xl font-bold text-green-600">{stats.active}</p>
-          </Card>
-          <Card>
             <p className="text-sm text-gray-500">Admins</p>
             <p className="text-2xl font-bold text-red-600">{stats.admins}</p>
           </Card>
           <Card>
-            <p className="text-sm text-gray-500">Editors</p>
-            <p className="text-2xl font-bold text-blue-600">{stats.editors}</p>
+            <p className="text-sm text-gray-500">Gardener Plan</p>
+            <p className="text-2xl font-bold text-blue-600">{stats.gardeners}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-gray-500">Botanist Plan</p>
+            <p className="text-2xl font-bold text-green-600">{stats.botanists}</p>
           </Card>
         </div>
 
         <Card>
           <div className="flex items-center justify-between mb-6">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <Button onClick={() => handleOpenModal()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <Button type="submit" variant="secondary">Search</Button>
+            </form>
+            <Button onClick={() => refetch()} variant="secondary">
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
           </div>
 
-          <Table columns={columns} data={filteredUsers} />
+          <Table columns={columns} data={users} loading={isLoading} />
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <p className="text-sm text-gray-500">
+                Page {params.page} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={params.page === 1}
+                  onClick={() => setParams({ ...params, page: (params.page || 1) - 1 })}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={params.page === totalPages}
+                  onClick={() => setParams({ ...params, page: (params.page || 1) + 1 })}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
 
         <Modal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          title={editingUser ? 'Edit User' : 'Add New User'}
+          title="Edit User"
           footer={
             <>
               <Button variant="secondary" onClick={handleCloseModal}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit}>
-                {editingUser ? 'Update' : 'Create'}
+              <Button onClick={handleSubmit} loading={updateUser.isPending}>
+                Update
               </Button>
             </>
           }
         >
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
+              label="First Name"
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+            />
+            <Input
+              label="Last Name"
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
             />
             <Input
               label="Email"
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
             />
             <Select
-              label="Role"
-              options={roleOptions}
-              value={formData.role}
-              onChange={(value) =>
-                setFormData({ ...formData, role: value as User['role'] })
-              }
-            />
-            <Select
-              label="Status"
-              options={statusOptions}
-              value={formData.status}
-              onChange={(value) =>
-                setFormData({ ...formData, status: value as User['status'] })
-              }
+              label="Subscription Tier"
+              options={tierOptions}
+              value={formData.subscriptionTier}
+              onChange={(value) => setFormData({ ...formData, subscriptionTier: value })}
             />
           </form>
         </Modal>

@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({ title }) => {
           <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
             <div className="text-right">
               <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-              <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+              <p className="text-xs text-gray-500 capitalize">{user?.roles?.[0] || 'User'}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
               {user?.name?.charAt(0).toUpperCase()}

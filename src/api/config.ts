@@ -1,5 +1,5 @@
 // API Configuration for PlantScope Backend
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://leafy.geekbug.dev/api';
 
 export const API_ENDPOINTS = {
   // Authentication

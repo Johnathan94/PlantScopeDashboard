@@ -45,8 +45,9 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authService.login({ email, password });
 
-          // Check if user has admin role
-          const isAdmin = response.user.roles.includes('Admin');
+          // Check if user has admin role - roles are at top level of response
+          const roles = response.roles || [];
+          const isAdmin = roles.includes('Admin');
 
           if (!isAdmin) {
             set({ isLoading: false, error: 'Access denied. Admin privileges required.' });
@@ -55,13 +56,13 @@ export const useAuthStore = create<AuthState>()(
 
           const user: AuthUser = {
             id: response.user.id,
-            email: response.user.email,
-            name: `${response.user.firstName} ${response.user.lastName}`,
-            firstName: response.user.firstName,
-            lastName: response.user.lastName,
-            roles: response.user.roles,
-            subscriptionTier: response.user.subscriptionTier,
-            createdAt: response.user.createdAt,
+            email: response.user.email || response.email,
+            name: response.email.split('@')[0], // Use email prefix as name
+            firstName: '',
+            lastName: '',
+            roles: roles,
+            subscriptionTier: response.plan || response.user.plan || 'Seedling',
+            createdAt: new Date().toISOString(),
           };
 
           set({
@@ -110,13 +111,12 @@ export const useAuthStore = create<AuthState>()(
           const user: AuthUser = {
             id: profile.id,
             email: profile.email,
-            name: `${profile.firstName} ${profile.lastName}`,
-            firstName: profile.firstName,
-            lastName: profile.lastName,
+            name: profile.displayName || profile.email.split('@')[0],
+            firstName: '',
+            lastName: '',
             roles: profile.roles,
-            subscriptionTier: profile.subscriptionTier,
-            createdAt: profile.createdAt,
-            lastLoginAt: profile.lastLoginAt,
+            subscriptionTier: profile.plan || 'Seedling',
+            createdAt: new Date().toISOString(),
           };
 
           set({

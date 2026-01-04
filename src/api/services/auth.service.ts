@@ -8,31 +8,25 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  accessToken: string;
   refreshToken: string;
+  expiresAt: string;
+  email: string;
+  plan: string;
+  roles: string[];
   user: {
     id: string;
     email: string;
-    firstName: string;
-    lastName: string;
-    roles: string[];
-    subscriptionTier: string;
-    createdAt: string;
+    plan: string;
   };
 }
 
 export interface UserProfile {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  displayName?: string;
+  plan: string;
   roles: string[];
-  subscriptionTier: string;
-  weeklyIdentificationLimit: number;
-  identificationsUsedThisWeek: number;
-  plantLimit: number;
-  plantsOwned: number;
-  createdAt: string;
-  lastLoginAt?: string;
 }
 
 export const authService = {
